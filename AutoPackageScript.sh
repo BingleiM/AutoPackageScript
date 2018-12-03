@@ -1,6 +1,5 @@
 # !/bin/bash
 
-
 # 使用方法:
 # step1 : 将AutoPackageScript整个文件夹拖入到项目主目录
 # step2 : 打开AutoPackageScript.sh文件,修改 "项目自定义部分" 配置好项目参数
@@ -11,10 +10,10 @@
 # 计时
 SECONDS=0
 # 是否编译工作空间 (例:若是用Cocopods管理的.xcworkspace项目,赋值true;用Xcode默认创建的.xcodeproj,赋值false)
-is_workspace="false"
+is_workspace="true"
 # 指定项目的scheme名称
 # (注意: 因为shell定义变量时,=号两边不能留空格,若scheme_name与info_plist_name有空格,脚本运行会失败)
-scheme_name="xxxxxx"
+scheme_name="Scale"
 # 工程中Target对应的配置plist文件名称, Xcode默认的配置文件为Info.plist
 info_plist_name="Info"
 # 指定要打包编译的方式 : Release,Debug
@@ -22,16 +21,15 @@ build_configuration="Release"
 # 是否上传分发平台(fir)
 is_uploadfir="false"
 # firToken
-fir_token="xxxxxxxxxx"
+# 冰垒 fir.im
+fir_token="65f4c749bb4f4ac6235978fabcf6f622"
+# 小勇 fir.im
+#fir_token="63e6d6251f4f7c2941cd3267bf27b315"
 
 upload_token=$fir_token
 
 # 蒲公英上传
 # 执行 curl -F "file=@/tmp/example.ipa" -F "uKey=xxx" -F "_api_key=xxx" https://qiniu-storage.pgyer.com/apiv1/app/upload 请根据开发者自己的账号，将其中的 uKey 和 _api_key 的值替换为相应的值。
-
-
-
-
 
 # ===============================自动打包部分(无特殊情况不用修改)============================= #
 
@@ -59,9 +57,42 @@ export_archive_path="$export_path/$scheme_name.xcarchive"
 export_ipa_path="$export_path"
 # 指定输出ipa名称
 ipa_name="$scheme_name-v$bundle_version"
+# 获取分支列表
+branches=`git branch --no-color 2> /dev/null |sed -e 's/* \(.*\)/\1/'`
+branch_list=(${branches[*]})
+flag=true
+while $flag
+do
+echo "------------------------------------------------------"
+echo "\033[36;1m请选择分支(输入序号,按回车即可) \033[0m"
+i=0
+for br in ${branches[@]}
+do
+echo "\033[33;1m"$i". "$br" \033[0m"
+i=`expr $i + 1`
+done
+read parm
+branch="$parm"
+flag=true
+if [ -n "$branch" ]
+then
+if [ "$branch" -ge ${#branch_list[@]} ] ; then
+echo "输入的参数无效!!!"
+else
+flag=false
+fi
+fi
+done
+echo ${branch_list[$branch]}
+pwd
+# 指定当前打包分支
+git checkout ${branch_list[$branch]}
+# 拉取当前分支最新代码
+git pull
+# 更新三方库
+pod install
 
 # AdHoc,AppStore,Enterprise三种打包方式的区别: http://blog.csdn.net/lwjok2007/article/details/46379945
-
 echo "------------------------------------------------------"
 echo "\033[36;1m请选择打包方式(输入序号,按回车即可) \033[0m"
 echo "\033[33;1m1. AdHoc       \033[0m"
@@ -76,18 +107,18 @@ method="$parameter"
 # 判读用户是否有输入
 if [ -n "$method" ]
 then
-    if [ "$method" = "1" ] ; then
-    ExportOptionsPlistPath="./AutoPackageScript/AdHocExportOptionsPlist.plist"
-    elif [ "$method" = "2" ] ; then
-    ExportOptionsPlistPath="./AutoPackageScript/AppStoreExportOptionsPlist.plist"
-    elif [ "$method" = "3" ] ; then
-    ExportOptionsPlistPath="./AutoPackageScript/EnterpriseExportOptionsPlist.plist"
-    elif [ "$method" = "4" ] ; then
-    ExportOptionsPlistPath="./AutoPackageScript/DevelopmentExportOptionsPlist.plist"
-    else
-    echo "输入的参数无效!!!"
-    exit 1
-    fi
+if [ "$method" = "1" ] ; then
+ExportOptionsPlistPath="./AutoPackageScript/AdHocExportOptionsPlist.plist"
+elif [ "$method" = "2" ] ; then
+ExportOptionsPlistPath="./AutoPackageScript/AppStoreExportOptionsPlist.plist"
+elif [ "$method" = "3" ] ; then
+ExportOptionsPlistPath="./AutoPackageScript/EnterpriseExportOptionsPlist.plist"
+elif [ "$method" = "4" ] ; then
+ExportOptionsPlistPath="./AutoPackageScript/DevelopmentExportOptionsPlist.plist"
+else
+echo "输入的参数无效!!!"
+exit 1
+fi
 fi
 
 echo "------------------------------------------------------"
@@ -113,6 +144,8 @@ else
 is_uploadfir="false"
 fi
 
+#----根据分支name，从git上拉取代码
+
 echo "------------------------------------------------------"
 echo "\033[32m开始构建项目  \033[0m"
 # 指定输出文件目录不存在则创建
@@ -126,23 +159,23 @@ fi
 if $is_workspace ; then
 # 编译前清理工程
 xcodebuild clean -workspace ${project_name}.xcworkspace \
-                 -scheme ${scheme_name} \
-                 -configuration ${build_configuration}
+-scheme ${scheme_name} \
+-configuration ${build_configuration}
 
 xcodebuild archive -workspace ${project_name}.xcworkspace \
-                   -scheme ${scheme_name} \
-                   -configuration ${build_configuration} \
-                   -archivePath ${export_archive_path}
+-scheme ${scheme_name} \
+-configuration ${build_configuration} \
+-archivePath ${export_archive_path}
 else
 # 编译前清理工程
 xcodebuild clean -project ${project_name}.xcodeproj \
-                 -scheme ${scheme_name} \
-                 -configuration ${build_configuration}
+-scheme ${scheme_name} \
+-configuration ${build_configuration}
 
 xcodebuild archive -project ${project_name}.xcodeproj \
-                   -scheme ${scheme_name} \
-                   -configuration ${build_configuration} \
-                   -archivePath ${export_archive_path}
+-scheme ${scheme_name} \
+-configuration ${build_configuration} \
+-archivePath ${export_archive_path}
 fi
 
 #  检查是否构建成功
@@ -157,9 +190,9 @@ echo "------------------------------------------------------"
 
 echo "\033[32m开始导出ipa文件 \033[0m"
 xcodebuild  -exportArchive \
-            -archivePath ${export_archive_path} \
-            -exportPath ${export_ipa_path} \
-            -exportOptionsPlist ${ExportOptionsPlistPath}
+-archivePath ${export_archive_path} \
+-exportPath ${export_ipa_path} \
+-exportOptionsPlist ${ExportOptionsPlistPath}
 # 修改ipa文件名称
 mv $export_ipa_path/$scheme_name.ipa $export_ipa_path/$ipa_name.ipa
 
